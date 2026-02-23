@@ -1,0 +1,20 @@
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
+  web:
+    build: .
+    container_name: web
+    depends_on:
+      - qdrant
+    ports:
+      - "8000:8000"
+
+volumes:
+  qdrant_data:
