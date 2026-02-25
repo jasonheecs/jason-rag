@@ -13,8 +13,7 @@ QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "jason_documents")
 
 # Scraping Configuration
 MEDIUM_USERNAME = os.getenv("MEDIUM_USERNAME")
-LINKEDIN_PROFILE_URL = os.getenv("LINKEDIN_PROFILE_URL")
 
 # Model Configuration
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 LLM_MODEL = "gpt-4o-mini"
