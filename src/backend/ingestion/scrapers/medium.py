@@ -16,11 +16,23 @@ class MediumScraper:
         self.username = username
         self.rss_url = self.RSS_URL_TEMPLATE.format(username=username)
 
-    def scrape(self) -> List[Dict]:
-        """Fetch and parse Medium posts."""
+    def scrape(self, last_scraped_date: datetime = None) -> List[Dict]:
+        """Fetch and parse Medium posts newer than last_scraped_date."""
         feed = feedparser.parse(self.rss_url)
-        posts = [self._parse_entry(entry) for entry in feed.entries]
-        print(f"Scraped {len(posts)} Medium posts")
+        posts = self._parse_posts(feed.entries, last_scraped_date)
+        print(f"Scraped {len(posts)} new Medium posts")
+        return posts
+
+    def _parse_posts(self, entries, last_scraped_date: datetime = None) -> List[Dict]:
+        """Parse feed entries, filtering for posts newer than last_scraped_date."""
+        posts = []
+        for entry in entries:
+            post = self._parse_entry(entry)
+
+            # Only include posts newer than last_scraped_date
+            if last_scraped_date is None or post['published_date'] > last_scraped_date:
+                posts.append(post)
+
         return posts
 
     def _parse_entry(self, entry) -> Dict:
