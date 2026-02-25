@@ -8,13 +8,25 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
 
-  web:
-    build: .
-    container_name: web
+  api:
+    build:
+      context: ./src/backend
+    container_name: api
     depends_on:
       - qdrant
     ports:
-      - "8000:8000"
+      - "8000:80"
+    volumes:
+      - ./src/backend:/code
+
+  ui:
+    build:
+      context: ./src/frontend
+    container_name: ui
+    ports:
+      - "8501:8501"
+    volumes:
+      - ./src/frontend:/app
 
 volumes:
   qdrant_data:

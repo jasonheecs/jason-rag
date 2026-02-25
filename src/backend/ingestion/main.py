@@ -2,7 +2,8 @@
 Main ingestion pipeline script.
 Scrapes content, chunks it, embeds it, and stores in Qdrant.
 """
-from src.ingestion.scrapers import MediumScraper, LinkedInScraper
+from src.ingestion.scrapers.medium import MediumScraper
+from src.ingestion.scrapers.linkedin import LinkedInScraper
 from src.ingestion.chunker import TextChunker
 from src.ingestion.embedder import Embedder
 from src.config.database import VectorDatabase
@@ -31,10 +32,10 @@ def run_ingestion():
         documents.extend(linkedin_data)
 
     if not documents:
-        print("❌ No documents found. Please check your configuration.")
+        print("No documents found. Please check your configuration.")
         return
 
-    print(f"✓ Scraped {len(documents)} documents")
+    print(f"Scraped {len(documents)} documents")
 
     # Step 2: Chunk documents
     print("\n[2/4] Chunking documents...")

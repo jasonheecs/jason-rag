@@ -8,9 +8,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     g++ \
     && rm -rf /var/lib/apt/lists/*
 
-COPY src/. .
+COPY . .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-#CMD ["python", "frontend/app.py"]
-CMD ["python"]
+CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
