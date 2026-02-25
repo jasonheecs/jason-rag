@@ -18,6 +18,19 @@ services:
       - "8000:80"
     volumes:
       - ./src/backend:/code
+    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
+
+  ingestion:
+    build:
+      context: ./src/backend
+    container_name: ingestion
+    depends_on:
+      - qdrant
+    volumes:
+      - ./src/backend:/code
+    command: ["python", "-m", "ingestion.main"]
+    profiles:
+      - manual  # Only runs when explicitly called
 
   ui:
     build:
