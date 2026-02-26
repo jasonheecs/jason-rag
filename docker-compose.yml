@@ -7,6 +7,8 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
+    networks:
+      - jason-rag-network
 
   api:
     build:
@@ -18,6 +20,8 @@ services:
       - "8000:80"
     volumes:
       - ./src/backend:/code
+    networks:
+      - jason-rag-network
     command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
 
   ingestion:
@@ -28,6 +32,8 @@ services:
       - qdrant
     volumes:
       - ./src/backend:/code
+    networks:
+      - jason-rag-network
     command: ["python", "-m", "ingestion.main"]
     profiles:
       - manual  # Only runs when explicitly called
@@ -38,8 +44,14 @@ services:
     container_name: ui
     ports:
       - "8501:8501"
+    networks:
+      - jason-rag-network
     volumes:
       - ./src/frontend:/app
 
 volumes:
   qdrant_data:
+
+networks:
+  jason-rag-network:
+    driver: bridge

@@ -1,5 +1,5 @@
 # Environment
-.env
+src/backend/.env
 venv/
 __pycache__/
 *.pyc
