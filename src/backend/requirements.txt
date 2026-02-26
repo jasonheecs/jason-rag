@@ -1,0 +1,25 @@
+# Scraping
+requests~=2.32
+beautifulsoup4~=4.14
+feedparser~=6.0
+
+# Embeddings
+fastembed~=0.7
+
+# Database
+qdrant-client~=1.17
+
+# LLM
+openai~=2.24.0
+
+# API
+fastapi[standard]~=0.133.0
+pydantic>=2.7.0,<3.0.0
+uvicorn[standard]~=0.41.0
+python-dotenv~=1.2
+
+# Utilities
+python-dateutil~=2.9
+
+# Testing
+pytest~=9.0

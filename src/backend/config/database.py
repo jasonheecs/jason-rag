@@ -39,6 +39,37 @@ class VectorDatabase:
         else:
             print(f"Collection {self.collection_name} already exists")
 
+    def insert_documents(self, documents: List[Dict]):
+        """Insert documents with embeddings into Qdrant."""
+        points = [self._create_point_from_document(doc) for doc in documents]
+        self.client.upsert(
+            collection_name=self.collection_name,
+            points=points
+        )
+        print(f"Inserted {len(documents)} document chunks into Qdrant")
+
+    def search_similar(self, query_embedding: np.ndarray, top_k: int = 5) -> List[Dict]:
+        """Search for similar documents using cosine similarity."""
+        search_result = self.client.search(
+            collection_name=self.collection_name,
+            query_vector=query_embedding.tolist(),
+            limit=top_k
+        )
+        return [self._format_search_result(hit) for hit in search_result]
+
+    def get_last_scraped_date(self, source: str) -> Optional[datetime]:
+        """Get the most recent published_date for a given source."""
+        if not self.client or not self._collection_exists() or self._collection_is_empty():
+            return None
+
+        return self._query_latest_document(source)
+
+    def close(self):
+        """Close connection to Qdrant."""
+        if self.client:
+            self.client.close()
+            print("Qdrant connection closed")
+
     def _create_point_from_document(self, doc: Dict) -> PointStruct:
         """Convert document to Qdrant point."""
         return PointStruct(
@@ -54,15 +85,6 @@ class VectorDatabase:
             }
         )
 
-    def insert_documents(self, documents: List[Dict]):
-        """Insert documents with embeddings into Qdrant."""
-        points = [self._create_point_from_document(doc) for doc in documents]
-        self.client.upsert(
-            collection_name=self.collection_name,
-            points=points
-        )
-        print(f"Inserted {len(documents)} document chunks into Qdrant")
-
     def _format_search_result(self, hit) -> Dict:
         """Format search result hit into dictionary."""
         return {
@@ -75,44 +97,33 @@ class VectorDatabase:
             'similarity': hit.score
         }
 
-    def search_similar(self, query_embedding: np.ndarray, top_k: int = 5) -> List[Dict]:
-        """Search for similar documents using cosine similarity."""
-        search_result = self.client.search(
+    def _collection_exists(self) -> bool:
+        """Check if the collection exists in Qdrant."""
+        collections = self.client.get_collections().collections
+        collection_names = [c.name for c in collections]
+        return self.collection_name in collection_names
+
+    def _collection_is_empty(self) -> bool:
+        """Check if the collection has any documents."""
+        count = self.client.count(collection_name=self.collection_name)
+        return count.count == 0
+
+    def _query_latest_document(self, source: str) -> Optional[datetime]:
+        """Query for the most recent document from a given source."""
+        results = self.client.scroll(
             collection_name=self.collection_name,
-            query_vector=query_embedding.tolist(),
-            limit=top_k
+            scroll_filter={
+                "must": [
+                    {"key": "source", "match": {"value": source}}
+                ]
+            },
+            limit=1,
+            order_by="published_date",
+            with_payload=["published_date"]
         )
-        return [self._format_search_result(hit) for hit in search_result]
-
-    def get_last_scraped_date(self, source: str) -> Optional[datetime]:
-        """Get the most recent published_date for a given source."""
-        if not self.client:
-            return None
-
-        try:
-            results = self.client.scroll(
-                collection_name=self.collection_name,
-                scroll_filter={
-                    "must": [
-                        {"key": "source", "match": {"value": source}}
-                    ]
-                },
-                limit=1,
-                order_by="published_date",
-                with_payload=["published_date"]
-            )
-        except Exception as e:
-            print(f"Could not retrieve last scraped date for {source}: {e}")
-            return None
 
         points, _ = results
         if points:
             return datetime.fromisoformat(points[0].payload['published_date'])
 
         return None
-
-    def close(self):
-        """Close connection to Qdrant."""
-        if self.client:
-            self.client.close()
-            print("Qdrant connection closed")

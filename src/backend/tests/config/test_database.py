@@ -76,31 +76,77 @@ class TestVectorDatabase:
         )
         assert results == []
 
-    @pytest.mark.parametrize(
-        "scroll_result, expected",
-        [
-            ([MagicMock(payload={"published_date": "2023-01-01T12:00:00"})], "2023-01-01T12:00:00"),
-            ([], None),
-        ],
-    )
-    def test_get_last_scraped_date(self, setup_mock_database, scroll_result, expected):
-        """Test get_last_scraped_date returns the most recent date or None."""
-        from datetime import datetime
-
-        vector_db = setup_mock_database
-        vector_db.client.scroll.return_value = (scroll_result, None)
-
-        result = vector_db.get_last_scraped_date(source="source_name")
-
-        if expected:
-            assert result == datetime.fromisoformat(expected)
-        else:
-            assert result is None
-
     def test_get_last_scraped_date_without_client(self):
         """Test get_last_scraped_date returns None when client is None."""
         vector_db = VectorDatabase()
         result = vector_db.get_last_scraped_date(source="source_name")
+        assert result is None
+
+    def test_get_last_scraped_date_collection_not_exists(self, setup_mock_database):
+        """Test get_last_scraped_date returns None when collection doesn't exist."""
+        vector_db = setup_mock_database
+        vector_db.client.get_collections.return_value.collections = []
+
+        result = vector_db.get_last_scraped_date(source="source_name")
+
+        assert result is None
+        vector_db.client.scroll.assert_not_called()
+
+    def test_get_last_scraped_date_collection_empty(self, setup_mock_database):
+        """Test get_last_scraped_date returns None when collection is empty."""
+        vector_db = setup_mock_database
+
+        # Mock collection exists
+        mock_collection = MagicMock()
+        mock_collection.name = vector_db.collection_name
+        vector_db.client.get_collections.return_value.collections = [mock_collection]
+
+        # Mock collection is empty
+        vector_db.client.count.return_value.count = 0
+
+        result = vector_db.get_last_scraped_date(source="source_name")
+
+        assert result is None
+        vector_db.client.scroll.assert_not_called()
+
+    def test_get_last_scraped_date_with_results(self, setup_mock_database):
+        """Test get_last_scraped_date returns the most recent date."""
+        from datetime import datetime
+
+        vector_db = setup_mock_database
+
+        # Mock collection exists
+        mock_collection = MagicMock()
+        mock_collection.name = vector_db.collection_name
+        vector_db.client.get_collections.return_value.collections = [mock_collection]
+
+        # Mock collection has documents
+        vector_db.client.count.return_value.count = 10
+
+        # Mock scroll returns a document
+        mock_point = MagicMock(payload={"published_date": "2023-01-01T12:00:00"})
+        vector_db.client.scroll.return_value = ([mock_point], None)
+
+        result = vector_db.get_last_scraped_date(source="source_name")
+
+        assert result == datetime.fromisoformat("2023-01-01T12:00:00")
+        vector_db.client.scroll.assert_called_once()
+
+    def test_get_last_scraped_date_no_matching_source(self, setup_mock_database):
+        """Test get_last_scraped_date returns None when no documents match the source."""
+        vector_db = setup_mock_database
+
+        # Mock collection exists and has documents
+        mock_collection = MagicMock()
+        mock_collection.name = vector_db.collection_name
+        vector_db.client.get_collections.return_value.collections = [mock_collection]
+        vector_db.client.count.return_value.count = 10
+
+        # Mock scroll returns empty results
+        vector_db.client.scroll.return_value = ([], None)
+
+        result = vector_db.get_last_scraped_date(source="source_name")
+
         assert result is None
 
     def test_close(self, setup_mock_database):
