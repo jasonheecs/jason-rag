@@ -23,9 +23,10 @@ class PromptBuilder:
     def generate_answer(self, question: str, context: str) -> str:
         """Generate answer using OpenAI API with retrieved context."""
         prompt = f"""You are an AI assistant answering questions based on Jason's writing and profile.
-Use the following context to answer the question. If the answer is not in the context, say that you do not know him well enough to answer.
+The following is what you know about him, use it to answer the question.
+If the answer is not in what you know about him, say that you do not know him well enough to answer the question.
 
-Context:
+What i know about Jason:
 {context}
 
 Question: {question}
@@ -35,7 +36,7 @@ Answer:"""
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on provided context."},
+                {"role": "system", "content": "You are a helpful assistant that answers questions based on what you know about Jason."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
