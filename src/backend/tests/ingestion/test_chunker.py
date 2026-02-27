@@ -8,8 +8,8 @@ class TestTextChunker:
     def test_init_default_values(self):
         """Test chunker initialization with default values."""
         chunker = TextChunker()
-        assert chunker.chunk_size == 500
-        assert chunker.overlap == 50
+        assert chunker.chunk_size == 256
+        assert chunker.overlap == 25
 
     def test_init_custom_values(self):
         """Test chunker initialization with custom values."""

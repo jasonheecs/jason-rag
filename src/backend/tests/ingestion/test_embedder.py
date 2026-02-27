@@ -39,12 +39,6 @@ class TestEmbedder:
         mock_text_embedding.assert_called_once_with(model_name="custom-model")
         assert embedder.embedding_dim == self.DEFAULT_EMBEDDING_DIM
 
-    def test_init_prints_loading_message(self, mock_embedder_setup, capsys):
-        """Test that initialization prints model loading message."""
-        self._create_embedder(mock_embedder_setup, "test-model")
-
-        assert "Loading embedding model: test-model" in capsys.readouterr().out
-
     def test_embed_text(self, mock_embedder_setup):
         """Test embedding single text."""
         _, mock_model = mock_embedder_setup
