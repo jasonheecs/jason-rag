@@ -50,12 +50,13 @@ class VectorDatabase:
 
     def search_similar(self, query_embedding: np.ndarray, top_k: int = 5) -> List[Dict]:
         """Search for similar documents using cosine similarity."""
-        search_result = self.client.search(
+        search_result = self.client.query_points(
             collection_name=self.collection_name,
-            query_vector=query_embedding.tolist(),
+            query=query_embedding.tolist(),
             limit=top_k
         )
-        return [self._format_search_result(hit) for hit in search_result]
+
+        return [self._format_search_result(hit) for hit in search_result.points]
 
     def get_last_scraped_date(self, source: str) -> Optional[datetime]:
         """Get the most recent published_date for a given source."""

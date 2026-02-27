@@ -61,17 +61,21 @@ class TestVectorDatabase:
                 points=["mock_point"],
             )
 
-    def test_search_similar_calls_search(self, setup_mock_database):
-        """Test search_similar performs search with expected parameters and returns results."""
+    def test_search_similar_calls_query_points(self, setup_mock_database):
+        """Test search_similar performs query with expected parameters and returns results."""
         vector_db = setup_mock_database
         query_embedding = MagicMock()
-        vector_db.client.search.return_value = []
+
+        # Mock the response structure
+        mock_response = MagicMock()
+        mock_response.points = []
+        vector_db.client.query_points.return_value = mock_response
 
         results = vector_db.search_similar(query_embedding=query_embedding, top_k=5)
 
-        vector_db.client.search.assert_called_once_with(
+        vector_db.client.query_points.assert_called_once_with(
             collection_name=vector_db.collection_name,
-            query_vector=query_embedding.tolist(),
+            query=query_embedding.tolist(),
             limit=5,
         )
         assert results == []

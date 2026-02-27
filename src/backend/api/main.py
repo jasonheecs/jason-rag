@@ -1,11 +1,11 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict
-from src.config.database import VectorDatabase
-from src.config.config import OPENAI_API_KEY, LLM_MODEL, EMBEDDING_MODEL
-from src.ingestion.embedder import Embedder
-from src.retrieval.query import QueryEngine
-from src.retrieval.prompt import PromptBuilder
+from config.database import VectorDatabase
+from config.config import OPENAI_API_KEY, LLM_MODEL, EMBEDDING_MODEL
+from ingestion.embedder import Embedder
+from retrieval.query import QueryEngine
+from retrieval.prompt import PromptBuilder
 
 app = FastAPI(title="Jason RAG API", version="1.0.0")
 
@@ -44,12 +44,12 @@ def query(request: QueryRequest):
     try:
         # Retrieve similar documents
         retrieved_docs = query_engine.search(request.question, top_k=request.top_k)
-
         # Generate answer
         result = prompt_builder.answer_question(request.question, retrieved_docs)
 
         return result
     except Exception as e:
+        print(f"Error in query endpoint: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

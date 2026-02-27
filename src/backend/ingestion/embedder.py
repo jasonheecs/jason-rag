@@ -8,7 +8,6 @@ class Embedder:
     """Generates embeddings and stores them in Qdrant."""
 
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
-        print(f"Loading embedding model: {model_name}")
         self.model = TextEmbedding(model_name=model_name)
         # FastEmbed models have standard dimensions - bge-small is 384
         self.embedding_dim = 384

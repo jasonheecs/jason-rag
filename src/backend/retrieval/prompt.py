@@ -23,7 +23,7 @@ class PromptBuilder:
     def generate_answer(self, question: str, context: str) -> str:
         """Generate answer using OpenAI API with retrieved context."""
         prompt = f"""You are an AI assistant answering questions based on Jason's writing and profile.
-Use the following context to answer the question. If the answer is not in the context, say so.
+Use the following context to answer the question. If the answer is not in the context, say that you do not know him well enough to answer.
 
 Context:
 {context}

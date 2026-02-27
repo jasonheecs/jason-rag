@@ -1,7 +1,6 @@
 from typing import List, Dict
-import numpy as np
-from src.config.database import VectorDatabase
-from src.ingestion.embedder import Embedder
+from config.database import VectorDatabase
+from ingestion.embedder import Embedder
 
 
 class QueryEngine:
