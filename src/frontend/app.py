@@ -1,9 +1,8 @@
 import streamlit as st
 import requests
-from datetime import datetime
 
 # Configuration
-API_URL = "http://localhost:8000"
+BACKEND_API_URL = "http://api:80"
 
 st.set_page_config(
     page_title="Ask Jason",
@@ -43,7 +42,7 @@ if question := st.chat_input("What would you like to know?"):
         with st.spinner("Thinking..."):
             try:
                 response = requests.post(
-                    f"{API_URL}/query",
+                    f"{BACKEND_API_URL}/query",
                     json={"question": question, "top_k": 5}
                 )
                 response.raise_for_status()
@@ -70,7 +69,7 @@ if question := st.chat_input("What would you like to know?"):
 
             except requests.exceptions.RequestException as e:
                 st.error(f"Error connecting to API: {e}")
-                st.info("Make sure the API is running at http://localhost:8000")
+                st.info(f"Make sure the API is running at {BACKEND_API_URL}")
 
 # Sidebar
 with st.sidebar:
