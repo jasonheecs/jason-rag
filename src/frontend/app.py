@@ -30,8 +30,25 @@ for message in st.session_state.messages:
                     st.markdown(f"```\n{source['content'][:200]}...\n```")
                     st.markdown("---")
 
-# Chat input
-if question := st.chat_input("What would you like to know?"):
+SUGGESTED_QUESTIONS = [
+    "Where did Jason Hee used to work at?",
+    "Can he code?",
+    "What is his favourite spreadsheet software?",
+]
+
+if not st.session_state.messages:
+    st.markdown("**Not sure where to start? Try one of these:**")
+    cols = st.columns(len(SUGGESTED_QUESTIONS))
+    for col, suggestion in zip(cols, SUGGESTED_QUESTIONS):
+        with col:
+            if st.button(suggestion, use_container_width=True):
+                st.session_state.suggested_question = suggestion
+                st.rerun()
+
+chat_input = st.chat_input("What would you like to know?")
+question = st.session_state.pop("suggested_question", None) or chat_input
+
+if question:
     # Add user message
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
@@ -76,8 +93,10 @@ with st.sidebar:
     st.header("ℹ️ About")
     st.markdown("""
     This RAG system answers questions based on Jason's:
-    - Medium articles
-    - LinkedIn profile
+    - [Medium blog posts](https://jasonheecs.medium.com/)
+    - [GitHub repositories](https://github.com/jasonheecs)
+    - [LinkedIn profile](https://www.linkedin.com/in/jasonheecs/)
+    - Resume (Google Drive link)
 
     **How it works:**
     1. Your question is embedded
