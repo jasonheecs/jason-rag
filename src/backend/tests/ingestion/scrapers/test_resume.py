@@ -1,132 +1,159 @@
 """Tests for the Resume PDF scraper."""
+import hashlib
+from datetime import datetime, timezone
+from unittest.mock import MagicMock, patch
+
 import pytest
-import os
-from pathlib import Path
-from datetime import datetime
-from unittest.mock import Mock, patch, MagicMock
 from ingestion.scrapers.resume import ResumeScraper
+
+
+FAKE_URL = "https://example.com/resume.pdf"
+FAKE_PDF_BYTES = b"%PDF-1.4 fake pdf content"
+FAKE_HASH = hashlib.sha256(FAKE_PDF_BYTES).hexdigest()
 
 
 class TestResumeScraper:
     """Test suite for ResumeScraper class."""
 
     @pytest.fixture
-    def temp_resume_dir(self, tmp_path):
-        """Create a temporary directory for test resume files."""
-        return str(tmp_path)
+    def scraper(self):
+        return ResumeScraper(url=FAKE_URL)
 
-    @pytest.fixture
-    def scraper(self, temp_resume_dir):
-        """Fixture providing a ResumeScraper instance."""
-        return ResumeScraper(resume_dir=temp_resume_dir)
+    # --- Initialisation ---
 
-    def test_init_with_valid_directory(self, temp_resume_dir):
-        """Test scraper initialization with valid directory."""
-        scraper = ResumeScraper(resume_dir=temp_resume_dir)
-        assert scraper.username == "user"
-        assert scraper.resume_dir == temp_resume_dir
+    def test_init_with_explicit_url(self):
+        scraper = ResumeScraper(url=FAKE_URL)
+        assert scraper.url == FAKE_URL
         assert scraper.SOURCE_NAME == "resume"
 
-    def test_init_with_invalid_directory(self):
-        """Test scraper initialization with non-existent directory."""
-        with pytest.raises(ValueError, match="Resume directory not found"):
-            ResumeScraper(resume_dir="/nonexistent/path")
+    def test_init_reads_env_var(self, monkeypatch):
+        monkeypatch.setenv("RESUME_URL", FAKE_URL)
+        scraper = ResumeScraper()
+        assert scraper.url == FAKE_URL
 
-    def test_init_with_default_directory(self):
-        """Test scraper initialization uses default directory."""
-        with patch("os.path.exists", return_value=True):
-            scraper = ResumeScraper()
-            assert scraper.resume_dir == "src/files"
+    def test_init_raises_without_url(self, monkeypatch):
+        monkeypatch.delenv("RESUME_URL", raising=False)
+        with pytest.raises(ValueError, match="RESUME_URL"):
+            ResumeScraper()
 
-    def test_scrape_no_pdf_files(self, scraper, capsys):
-        """Test scraping when no PDF files are present."""
-        documents = scraper.scrape()
-        
-        assert documents == []
-        captured = capsys.readouterr()
-        assert "No PDF files found" in captured.out
+    # --- scrape() ---
 
-    @patch("pdfplumber.open")
-    def test_scrape_with_pdf_file(self, mock_pdf_open, scraper, temp_resume_dir, capsys):
-        """Test scraping with a valid PDF file."""
-        # Create a mock PDF fixture
-        pdf_name = "resume.pdf"
-        pdf_path = Path(temp_resume_dir) / pdf_name
-        
-        # Create a mock PDF file and pdfplumber response
-        with patch("pathlib.Path.glob") as mock_glob:
-            mock_glob.return_value = [pdf_path]
-            
-            # Mock pdfplumber PDF object
-            mock_pdf = MagicMock()
-            mock_page = MagicMock()
-            mock_page.extract_text.return_value = "John Doe\nSoftware Engineer\nExperience: 5 years"
-            mock_pdf.pages = [mock_page]
-            mock_pdf_open.return_value.__enter__.return_value = mock_pdf
-            
-            # Mock file modification time
-            with patch("os.path.getmtime", return_value=1609459200):  # 2021-01-01
-                documents = scraper.scrape()
-        
-        assert len(documents) == 1
-        assert documents[0]["title"] == "resume"
-        assert "John Doe" in documents[0]["content"]
-        assert documents[0]["source"] == "resume"
-        assert documents[0]["metadata"]["filename"] == pdf_name
-        assert documents[0]["metadata"]["pages"] == 1
+    @patch("ingestion.scrapers.resume.ResumeScraper._fetch_and_extract", return_value=None)
+    def test_scrape_returns_empty_when_fetch_fails(self, _mock, scraper):
+        assert scraper.scrape() == []
 
-    @patch("pdfplumber.open")
-    def test_scrape_with_extraction_error(self, mock_pdf_open, scraper, temp_resume_dir, capsys):
-        """Test scraping handles extraction errors gracefully."""
-        pdf_path = Path(temp_resume_dir) / "resume.pdf"
-        
-        with patch("pathlib.Path.glob") as mock_glob:
-            mock_glob.return_value = [pdf_path]
-            mock_pdf_open.side_effect = Exception("PDF corruption")
-            
-            documents = scraper.scrape()
-        
-        assert documents == []
-        captured = capsys.readouterr()
-        assert "Failed to extract text from" in captured.out
-        assert "PDF corruption" in captured.out
+    @patch("ingestion.scrapers.resume.ResumeScraper._fetch_and_extract")
+    def test_scrape_returns_document(self, mock_fetch, scraper):
+        fake_doc = {"title": "resume", "content": "text", "content_hash": FAKE_HASH}
+        mock_fetch.return_value = fake_doc
+        docs = scraper.scrape()
+        assert docs == [fake_doc]
 
-    @patch("pdfplumber.open")
-    def test_filter_by_date(self, mock_pdf_open, scraper, temp_resume_dir):
-        """Test that scraper can filter documents by date."""
-        pdf_path = Path(temp_resume_dir) / "resume.pdf"
-        
-        with patch("pathlib.Path.glob") as mock_glob:
-            mock_glob.return_value = [pdf_path]
-            
-            mock_pdf = MagicMock()
-            mock_page = MagicMock()
-            mock_page.extract_text.return_value = "Resume content"
-            mock_pdf.pages = [mock_page]
-            mock_pdf_open.return_value.__enter__.return_value = mock_pdf
-            
-            # Set document date to 2021-01-01
-            with patch("os.path.getmtime", return_value=1609459200):
-                # Filter with a date after document creation
-                future_date = datetime(2022, 1, 1)
-                documents = scraper.scrape(last_scraped_date=future_date)
-        
-        assert documents == []
+    @patch("ingestion.scrapers.resume.ResumeScraper._fetch_and_extract")
+    def test_scrape_ignores_last_scraped_date(self, mock_fetch, scraper):
+        """last_scraped_date param is accepted but unused (hash-based dedup)."""
+        mock_fetch.return_value = {"title": "r", "content": "c", "content_hash": FAKE_HASH}
+        docs = scraper.scrape(last_scraped_date=datetime(2020, 1, 1))
+        assert len(docs) == 1
+
+    # --- _download_pdf() ---
+
+    @patch("ingestion.scrapers.resume.requests.get")
+    def test_download_pdf_plain_url(self, mock_get, scraper):
+        mock_response = MagicMock()
+        mock_response.content = FAKE_PDF_BYTES
+        mock_get.return_value = mock_response
+        pdf_bytes, response = scraper._download_pdf()
+        assert pdf_bytes == FAKE_PDF_BYTES
+        assert response is mock_response
+
+    @patch("ingestion.scrapers.resume.ResumeScraper._download_from_google_drive")
+    def test_download_pdf_routes_google_drive(self, mock_gdrive, scraper):
+        scraper.url = "https://drive.google.com/file/d/abc/view"
+        mock_gdrive.return_value = FAKE_PDF_BYTES
+        pdf_bytes, response = scraper._download_pdf()
+        assert pdf_bytes == FAKE_PDF_BYTES
+        assert response is None
+        mock_gdrive.assert_called_once()
+
+    # --- _fetch_and_extract() ---
+
+    @patch("ingestion.scrapers.resume.pdfplumber.open")
+    @patch("ingestion.scrapers.resume.ResumeScraper._download_pdf")
+    def test_fetch_and_extract_returns_doc_with_hash(self, mock_dl, mock_pdf_open, scraper):
+        mock_dl.return_value = (FAKE_PDF_BYTES, None)
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = "Jason Hee — Software Engineer"
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf_open.return_value.__enter__.return_value = mock_pdf
+
+        doc = scraper._fetch_and_extract()
+
+        assert doc is not None
+        assert doc["content_hash"] == FAKE_HASH
+        assert "Jason Hee" in doc["content"]
+        assert doc["source"] == "resume"
+
+    @patch("ingestion.scrapers.resume.pdfplumber.open")
+    @patch("ingestion.scrapers.resume.ResumeScraper._download_pdf")
+    def test_fetch_and_extract_returns_none_on_empty_text(self, mock_dl, mock_pdf_open, scraper):
+        mock_dl.return_value = (FAKE_PDF_BYTES, None)
+        mock_page = MagicMock()
+        mock_page.extract_text.return_value = ""
+        mock_pdf = MagicMock()
+        mock_pdf.pages = [mock_page]
+        mock_pdf_open.return_value.__enter__.return_value = mock_pdf
+
+        assert scraper._fetch_and_extract() is None
+
+    @patch("ingestion.scrapers.resume.ResumeScraper._download_pdf", side_effect=Exception("network error"))
+    def test_fetch_and_extract_returns_none_on_error(self, _mock, scraper, capsys):
+        assert scraper._fetch_and_extract() is None
+        assert "Failed to fetch resume" in capsys.readouterr().out
+
+    # --- document_is_new() ---
+
+    def test_document_is_new_when_no_stored_hash(self):
+        doc = {"content_hash": FAKE_HASH}
+        assert ResumeScraper.document_is_new(doc, None) is True
+
+    def test_document_is_new_when_hash_differs(self):
+        doc = {"content_hash": FAKE_HASH}
+        assert ResumeScraper.document_is_new(doc, "oldhash") is True
+
+    def test_document_is_not_new_when_hash_matches(self):
+        doc = {"content_hash": FAKE_HASH}
+        assert ResumeScraper.document_is_new(doc, FAKE_HASH) is False
+
+    # --- helpers ---
+
+    def test_is_google_drive_url(self):
+        assert ResumeScraper._is_google_drive_url("https://drive.google.com/file/d/abc/view")
+        assert not ResumeScraper._is_google_drive_url("https://example.com/resume.pdf")
+
+    def test_parse_filename_from_url(self, scraper):
+        assert scraper._parse_filename("https://example.com/my-resume.pdf") == "my-resume"
+        assert scraper._parse_filename("https://example.com/resume") == "resume"
+
+    def test_parse_last_modified_from_header(self, scraper):
+        mock_response = MagicMock()
+        mock_response.headers = {"Last-Modified": "Wed, 01 Jan 2025 00:00:00 GMT"}
+        dt = scraper._parse_last_modified(mock_response)
+        assert dt.year == 2025
+
+    def test_parse_last_modified_falls_back_to_now(self, scraper):
+        dt = scraper._parse_last_modified(None)
+        assert dt.tzinfo == timezone.utc
 
     def test_create_document_structure(self, scraper):
-        """Test that created documents have correct structure."""
         doc = scraper._create_document(
             title="Test Resume",
             content="Test content",
-            url="file:///path/to/resume.pdf",
+            url=FAKE_URL,
             published_date=datetime.now(),
-            metadata={"pages": 2}
+            metadata={"pages": 2},
         )
-        
-        assert "title" in doc
-        assert "content" in doc
-        assert "url" in doc
-        assert "published_date" in doc
-        assert "source" in doc
-        assert "metadata" in doc
         assert doc["source"] == "resume"
+        for key in ("title", "content", "url", "published_date", "metadata"):
+            assert key in doc
