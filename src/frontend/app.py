@@ -96,7 +96,7 @@ with st.sidebar:
     - [Medium blog posts](https://jasonheecs.medium.com/)
     - [GitHub repositories](https://github.com/jasonheecs)
     - [LinkedIn profile](https://www.linkedin.com/in/jasonheecs/)
-    - Resume (Google Drive link)
+    - [Resume](https://drive.google.com/file/d/18cpyhR8hf3Qf53PWXGmF69e1khGwxuSo/view?usp=sharing)
 
     **How it works:**
     1. Your question is embedded

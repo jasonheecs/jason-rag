@@ -23,6 +23,9 @@ services:
       - QDRANT_PORT=${QDRANT_PORT}
       - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME}
       - MEDIUM_USERNAME=${MEDIUM_USERNAME}
+      - GITHUB_USERNAME=${GITHUB_USERNAME}
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - RESUME_URL=${RESUME_URL}
       - HF_TOKEN=${HF_TOKEN}
     profiles:
       - manual  # only runs when explicitly invoked
