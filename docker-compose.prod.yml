@@ -1,0 +1,16 @@
+services:
+  api:
+    image: jasonheecs/jason-rag-api:latest
+
+  ingestion:
+    image: jasonheecs/jason-rag-ingestion:latest
+
+  ui:
+    image: jasonheecs/jason-rag-ui:latest
+    networks:
+      - jason-rag-network
+      - caddy-network
+
+networks:
+  caddy-network:
+    external: true

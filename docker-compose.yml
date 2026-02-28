@@ -11,43 +11,30 @@ services:
       - jason-rag-network
 
   api:
-    build:
-      context: ./src/backend
     container_name: api
     depends_on:
       - qdrant
     ports:
       - "8000:80"
-    volumes:
-      - ./src/backend:/code
     networks:
       - jason-rag-network
-    command: ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
 
   ingestion:
-    build:
-      context: ./src/backend
     container_name: ingestion
     depends_on:
       - qdrant
-    volumes:
-      - ./src/backend:/code
     networks:
       - jason-rag-network
     command: ["python", "-m", "ingestion.main"]
     profiles:
-      - manual  # Only runs when explicitly called
+      - manual  # only runs when explicitly invoked
 
   ui:
-    build:
-      context: ./src/frontend
     container_name: ui
     ports:
       - "8501:8501"
     networks:
       - jason-rag-network
-    volumes:
-      - ./src/frontend:/app
 
 volumes:
   qdrant_data:
