@@ -14,6 +14,8 @@ QDRANT_COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "jason_documents")
 
 # Scraping Configuration
 MEDIUM_USERNAME = os.getenv("MEDIUM_USERNAME")
+GITHUB_USERNAME = os.getenv("GITHUB_USERNAME")
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
 # Model Configuration
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
