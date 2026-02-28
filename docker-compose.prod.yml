@@ -1,13 +1,20 @@
 ---
 services:
+  qdrant:
+    image: docker.io/qdrant/qdrant:latest
+    container_name: ${QDRANT_CONTAINER_NAME:-qdrant}
+
   api:
     image: docker.io/jasonheecs/jason-rag-api:latest
+    container_name: ${API_CONTAINER_NAME:-api}
 
   ingestion:
     image: docker.io/jasonheecs/jason-rag-ingestion:latest
+    container_name: ${INGESTION_CONTAINER_NAME:-ingestion}
 
   ui:
     image: docker.io/jasonheecs/jason-rag-ui:latest
+    container_name: ${UI_CONTAINER_NAME:-ui}
     networks:
       - jason-rag-network
       - caddy-network
