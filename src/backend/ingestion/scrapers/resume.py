@@ -1,127 +1,90 @@
-"""Resume PDF scraper for fetching a resume PDF from a remote URL."""
-import hashlib
-import io
+"""Resume PDF scraper for fetching resume PDFs from a local directory."""
 import os
-import tempfile
-from typing import Dict, List, Optional, Tuple
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+from pathlib import Path
+from typing import Dict, List, Optional
 
-import gdown
 import pdfplumber
-import requests
 from ingestion.scrapers.base import BaseScraper
 
 
 class ResumeScraper(BaseScraper):
-    """Scrapes a resume PDF from a remote URL."""
+    """Scrapes resume PDFs from a local directory."""
 
     SOURCE_NAME = "resume"
+    DEFAULT_RESUME_DIR = "src/files"
 
-    def __init__(self, url: Optional[str] = None):
+    def __init__(self, resume_dir: Optional[str] = None):
         """
         Initialize Resume scraper.
 
         Args:
-            url: Direct URL to a PDF resume (defaults to RESUME_URL env var)
+            resume_dir: Path to directory containing resume PDFs
+                        (defaults to DEFAULT_RESUME_DIR)
         """
-        self.url = url or os.getenv("RESUME_URL")
-        if not self.url:
-            raise ValueError("Resume URL must be provided or set RESUME_URL env var")
+        self.resume_dir = resume_dir or self.DEFAULT_RESUME_DIR
+        if not os.path.exists(self.resume_dir):
+            raise ValueError(f"Resume directory not found: {self.resume_dir}")
         super().__init__("user")
 
-    def scrape(self, last_scraped_date: Optional[datetime] = None) -> List[Dict]:  # noqa: ARG002
+    def scrape(self, last_scraped_date: Optional[datetime] = None) -> List[Dict]:
         """
-        Fetch and parse the remote resume PDF.
+        Find and parse all PDF files in the resume directory.
 
         Args:
-            last_scraped_date: Unused; resume deduplication is hash-based
+            last_scraped_date: If provided, only return documents modified after this date
 
         Returns:
-            List containing a single resume document (with content_hash), or empty list
+            List of resume documents extracted from PDFs
         """
-        doc = self._fetch_and_extract()
-        if not doc:
+        pdf_files = list(Path(self.resume_dir).glob("*.pdf"))
+        if not pdf_files:
+            print("No PDF files found in resume directory")
             return []
 
-        print("Scraped 1 resume document")
-        return [doc]
+        documents = []
+        for pdf_path in pdf_files:
+            doc = self._extract_from_pdf(pdf_path)
+            if doc is None:
+                continue
+            if last_scraped_date is not None:
+                pub_date = doc["published_date"]
+                if pub_date.tzinfo is None:
+                    pub_date = pub_date.replace(tzinfo=timezone.utc)
+                if last_scraped_date.tzinfo is None:
+                    last_scraped_date = last_scraped_date.replace(tzinfo=timezone.utc)
+                if pub_date <= last_scraped_date:
+                    continue
+            documents.append(doc)
 
-    def _fetch_and_extract(self) -> Optional[Dict]:
-        """Download the PDF, compute its hash, and extract text."""
+        print(f"Scraped {len(documents)} resume document(s)")
+        return documents
+
+    def _extract_from_pdf(self, pdf_path: Path) -> Optional[Dict]:
+        """Extract text and metadata from a single PDF file."""
         try:
-            pdf_bytes, response = self._download_pdf()
-            content_hash = hashlib.sha256(pdf_bytes).hexdigest()
-            published_date = self._parse_last_modified(response)
-
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            with pdfplumber.open(str(pdf_path)) as pdf:
+                mtime = os.path.getmtime(str(pdf_path))
+                published_date = datetime.fromtimestamp(mtime, tz=timezone.utc)
                 text_content = self._extract_text_from_pdf(pdf)
                 if not text_content.strip():
-                    print(f"No text extracted from resume at {self.url}")
+                    print(f"No text extracted from {pdf_path.name}")
                     return None
 
-                doc = self._create_document(
-                    title=self._parse_filename(self.url),
+                return self._create_document(
+                    title=pdf_path.stem,
                     content=text_content.strip(),
-                    url=self.url,
+                    url=f"file://{pdf_path.resolve()}",
                     published_date=published_date,
-                    metadata={"pages": len(pdf.pages)},
+                    metadata={
+                        "filename": pdf_path.name,
+                        "pages": len(pdf.pages),
+                    },
                 )
-                doc['content_hash'] = content_hash
-                return doc
         except Exception as e:
-            print(f"Failed to fetch resume from {self.url}: {str(e)}")
+            print(f"Failed to extract text from {pdf_path.name}: {str(e)}")
             return None
-
-    def _download_pdf(self) -> Tuple[bytes, Optional[requests.Response]]:
-        """Download PDF bytes from the URL, using gdown for Google Drive links."""
-        if self._is_google_drive_url(self.url):
-            return self._download_from_google_drive(), None
-
-        response = requests.get(self.url, timeout=30)
-        response.raise_for_status()
-        return response.content, response
-
-    def _download_from_google_drive(self) -> bytes:
-        """Download a PDF from a Google Drive sharing link via gdown."""
-        with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            tmp_path = tmp.name
-        try:
-            result = gdown.download(self.url, tmp_path, quiet=True, fuzzy=True)
-            if not result:
-                raise ValueError("gdown failed to download the file")
-            with open(tmp_path, "rb") as f:
-                return f.read()
-        finally:
-            if os.path.exists(tmp_path):
-                os.unlink(tmp_path)
-
-    @staticmethod
-    def document_is_new(doc: Dict, stored_hash: Optional[str]) -> bool:
-        """Return True if the document content differs from what is stored."""
-        return doc.get('content_hash') != stored_hash
-
-    @staticmethod
-    def _is_google_drive_url(url: str) -> bool:
-        """Return True if the URL points to Google Drive."""
-        return "drive.google.com" in url
 
     def _extract_text_from_pdf(self, pdf) -> str:
         """Extract text from all pages of a PDF."""
         return "".join(page.extract_text() or "" for page in pdf.pages)
-
-    def _parse_last_modified(self, response: Optional[requests.Response]) -> datetime:
-        """Return the Last-Modified header date, or now if unavailable."""
-        if response:
-            last_modified = response.headers.get("Last-Modified")
-            if last_modified:
-                try:
-                    return parsedate_to_datetime(last_modified)
-                except Exception:
-                    pass
-        return datetime.now(tz=timezone.utc)
-
-    def _parse_filename(self, url: str) -> str:
-        """Extract a filename stem from the URL path."""
-        name = url.rstrip("/").split("/")[-1]
-        return name.rsplit(".", 1)[0] if "." in name else name or "resume"
