@@ -13,6 +13,9 @@ services:
 
   api:
     container_name: api
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
     depends_on:
       - qdrant
     ports:
@@ -22,6 +25,9 @@ services:
 
   ingestion:
     container_name: ingestion
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
     depends_on:
       - qdrant
     networks:
@@ -32,6 +38,9 @@ services:
 
   ui:
     container_name: ui
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
     ports:
       - "8501:8501"
     networks:
