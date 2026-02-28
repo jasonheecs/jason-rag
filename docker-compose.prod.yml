@@ -24,6 +24,8 @@ services:
       - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME}
       - MEDIUM_USERNAME=${MEDIUM_USERNAME}
       - HF_TOKEN=${HF_TOKEN}
+    profiles:
+      - manual  # only runs when explicitly invoked
 
   ui:
     image: docker.io/jasonheecs/jason-rag-ui:latest
