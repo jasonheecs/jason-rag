@@ -1,24 +1,34 @@
 """GitHub scraper for fetching profile and repository information."""
+import os
 import requests
 from typing import List, Dict, Optional
 from datetime import datetime
+from ingestion.scrapers.base import BaseScraper
 
 
-class GitHubScraper:
+class GitHubScraper(BaseScraper):
     """Scrapes GitHub profile and repositories via GitHub API."""
 
     API_BASE_URL = "https://api.github.com"
     SOURCE_NAME = "github"
 
-    def __init__(self, username: str, token: Optional[str] = None):
+    def __init__(self, username: Optional[str] = None, token: Optional[str] = None):
         """
         Initialize GitHub scraper.
 
         Args:
-            username: GitHub username to scrape
-            token: Optional GitHub personal access token for higher rate limits
+            username: GitHub username to scrape (defaults to GITHUB_USERNAME env var)
+            token: GitHub personal access token (defaults to GITHUB_TOKEN env var)
         """
-        self.username = username
+        if username is None:
+            username = os.getenv("GITHUB_USERNAME")
+        if token is None:
+            token = os.getenv("GITHUB_TOKEN")
+        
+        if not username:
+            raise ValueError("GitHub username must be provided or set GITHUB_USERNAME env var")
+        
+        super().__init__(username)
         self.token = token
         self.session = self._create_session()
 
@@ -29,15 +39,16 @@ class GitHubScraper:
         # Scrape profile info
         profile_doc = self._scrape_profile()
         if profile_doc:
-            if last_scraped_date is None or profile_doc['published_date'] > last_scraped_date:
-                documents.append(profile_doc)
+            documents.append(profile_doc)
 
         # Scrape repositories
-        repo_docs = self._scrape_repositories(last_scraped_date)
+        repo_docs = self._scrape_repositories()
         documents.extend(repo_docs)
 
-        print(f"Scraped {len(documents)} GitHub documents")
-        return documents
+        # Filter all documents by date
+        filtered_docs = self._filter_by_date(documents, last_scraped_date)
+        print(f"Scraped {len(filtered_docs)} GitHub documents")
+        return filtered_docs
 
     def _create_session(self) -> requests.Session:
         """Create HTTP session with authentication if token provided."""
@@ -58,7 +69,7 @@ class GitHubScraper:
             print(f"Error fetching GitHub profile: {e}")
             return None
 
-    def _scrape_repositories(self, last_scraped_date: Optional[datetime] = None) -> List[Dict]:
+    def _scrape_repositories(self) -> List[Dict]:
         """Fetch and parse user repositories."""
         repos = []
         page = 1
@@ -83,11 +94,6 @@ class GitHubScraper:
 
                 for repo_data in repo_list:
                     repo_doc = self._parse_repository(repo_data)
-
-                    # Stop if we've reached repos older than last_scraped_date
-                    if last_scraped_date and repo_doc['published_date'] < last_scraped_date:
-                        return repos
-
                     repos.append(repo_doc)
 
                 page += 1
@@ -134,23 +140,12 @@ class GitHubScraper:
         """Parse ISO 8601 date string to datetime."""
         return datetime.fromisoformat(iso_string.replace('Z', '+00:00'))
 
-    def _create_document(
-        self,
-        title: str,
-        content: str,
-        url: str,
-        published_date: datetime,
-        metadata: Dict,
-    ) -> Dict:
-        """Create a document dictionary with standard structure."""
-        return {
-            'title': title,
-            'content': content,
-            'url': url,
-            'published_date': published_date,
-            'source': self.SOURCE_NAME,
-            'metadata': metadata,
-        }
+    def _append_optional_field(self, parts: List[str], data: Dict, field: str, label: str = None) -> None:
+        """Append a field to parts list if it exists and is not empty."""
+        if label is None:
+            label = field.title()
+        if data.get(field):
+            parts.append(f"{label}: {data[field]}")
 
     def _extract_profile_parts(self, user_data: Dict) -> List[str]:
         """Extract profile content parts."""
@@ -159,14 +154,8 @@ class GitHubScraper:
             f"Name: {user_data.get('name') or 'N/A'}",
         ]
 
-        if user_data.get('bio'):
-            parts.append(f"Bio: {user_data['bio']}")
-        if user_data.get('company'):
-            parts.append(f"Company: {user_data['company']}")
-        if user_data.get('location'):
-            parts.append(f"Location: {user_data['location']}")
-        if user_data.get('blog'):
-            parts.append(f"Blog: {user_data['blog']}")
+        for field in ['bio', 'company', 'location', 'blog']:
+            self._append_optional_field(parts, user_data, field)
 
         parts.extend([
             f"Public Repositories: {user_data['public_repos']}",
@@ -181,8 +170,8 @@ class GitHubScraper:
         """Extract repository content parts."""
         parts = [f"Repository: {repo_data['name']}"]
 
-        if repo_data.get('description'):
-            parts.append(f"Description: {repo_data['description']}")
+        for field in ['description']:
+            self._append_optional_field(parts, repo_data, field)
 
         parts.extend([
             f"Language: {repo_data.get('language') or 'N/A'}",

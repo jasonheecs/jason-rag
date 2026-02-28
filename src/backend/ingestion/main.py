@@ -2,30 +2,25 @@
 Main ingestion pipeline script.
 Scrapes content, chunks it, embeds it, and stores in Qdrant.
 """
+import os
 from ingestion.scrapers.medium import MediumScraper
 from ingestion.scrapers.github import GitHubScraper
 from ingestion.chunker import TextChunker
 from ingestion.embedder import Embedder
 from config.database import VectorDatabase
-from config.config import MEDIUM_USERNAME, GITHUB_USERNAME, GITHUB_TOKEN, EMBEDDING_MODEL
+from config.config import EMBEDDING_MODEL
 
 
 class IngestionPipeline:
     """Orchestrates the full ingestion pipeline for scraping, chunking, and embedding content."""
 
-    def __init__(self, medium_username=None, github_username=None, github_token=None, embedding_model=EMBEDDING_MODEL):
+    def __init__(self, embedding_model=EMBEDDING_MODEL):
         """
         Initialize the ingestion pipeline.
 
         Args:
-            medium_username: Medium username to scrape posts from
-            github_username: GitHub username to scrape profile and repos from
-            github_token: Optional GitHub personal access token for higher rate limits
             embedding_model: Name of the embedding model to use
         """
-        self.medium_username = medium_username
-        self.github_username = github_username
-        self.github_token = github_token
         self.embedding_model = embedding_model
         self.vector_db = None
         self.chunker = TextChunker()
@@ -52,28 +47,30 @@ class IngestionPipeline:
         print("\n[2/5] Scraping content...")
         documents = []
 
-        if self.medium_username:
-            documents.extend(self._scrape_medium())
+        if os.getenv("MEDIUM_USERNAME"):
+            documents.extend(self._scrape_source(MediumScraper, "medium"))
 
-        if self.github_username:
-            documents.extend(self._scrape_github())
+        if os.getenv("GITHUB_USERNAME"):
+            documents.extend(self._scrape_source(GitHubScraper, "github"))
 
         print(f"Scraped {len(documents)} documents")
         return documents
 
-    def _scrape_medium(self):
-        last_scraped = self.vector_db.get_last_scraped_date("medium")
+    def _scrape_source(self, scraper_class, source_name):
+        """Scrape content from a source using the provided scraper class.
+        
+        Args:
+            scraper_class: The scraper class to instantiate
+            source_name: The source name for tracking last scraped date
+            
+        Returns:
+            List of documents from the scraper
+        """
+        last_scraped = self.vector_db.get_last_scraped_date(source_name)
         if last_scraped:
-            print(f"Last Medium scrape: {last_scraped}")
-        medium_scraper = MediumScraper(self.medium_username)
-        return medium_scraper.scrape(last_scraped_date=last_scraped)
-
-    def _scrape_github(self):
-        last_scraped = self.vector_db.get_last_scraped_date("github")
-        if last_scraped:
-            print(f"Last GitHub scrape: {last_scraped}")
-        github_scraper = GitHubScraper(self.github_username, token=self.github_token)
-        return github_scraper.scrape(last_scraped_date=last_scraped)
+            print(f"Last {source_name.title()} scrape: {last_scraped}")
+        scraper = scraper_class()
+        return scraper.scrape(last_scraped_date=last_scraped)
 
     def _chunk_documents(self, documents):
         """Chunk documents into smaller pieces."""
@@ -116,10 +113,5 @@ class IngestionPipeline:
 
 
 if __name__ == "__main__":
-    with IngestionPipeline(
-        medium_username=MEDIUM_USERNAME,
-        github_username=GITHUB_USERNAME,
-        github_token=GITHUB_TOKEN,
-        embedding_model=EMBEDDING_MODEL
-    ) as pipeline:
+    with IngestionPipeline() as pipeline:
         pipeline.run()
