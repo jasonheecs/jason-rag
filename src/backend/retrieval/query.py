@@ -1,9 +1,11 @@
-from typing import List, Dict
+"""Query engine module for semantic search over documents."""
+from typing import Dict, List
+
 from config.database import VectorDatabase
 from ingestion.embedder import Embedder
 
 
-class QueryEngine:
+class QueryEngine:  # pylint: disable=too-few-public-methods
     """Handles query embedding and vector search."""
 
     def __init__(self, embedder: Embedder, vector_db: VectorDatabase):

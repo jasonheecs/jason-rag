@@ -1,6 +1,8 @@
-from fastembed import TextEmbedding
+"""Embedding module for generating and managing text embeddings."""
 from typing import List
+
 import numpy as np
+from fastembed import TextEmbedding
 from config.database import VectorDatabase
 
 

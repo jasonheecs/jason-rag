@@ -1,6 +1,9 @@
+"""FastAPI application for Jason RAG API."""
+from typing import List, Dict
+
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from typing import List, Dict
+
 from config.database import VectorDatabase
 from config.config import OPENAI_API_KEY, LLM_MODEL, EMBEDDING_MODEL
 from ingestion.embedder import Embedder
@@ -19,22 +22,28 @@ prompt_builder = PromptBuilder(openai_api_key=OPENAI_API_KEY, model=LLM_MODEL)
 
 
 class QueryRequest(BaseModel):
+    """Request model for query endpoint."""
+
     question: str
     top_k: int = 5
 
 
 class QueryResponse(BaseModel):
+    """Response model for query endpoint."""
+
     answer: str
     sources: List[Dict]
 
 
 @app.get("/")
 def root():
+    """Root endpoint."""
     return {"message": "Jason RAG API is running"}
 
 
 @app.get("/health")
 def health():
+    """Health check endpoint."""
     return {"status": "healthy"}
 
 
@@ -50,7 +59,7 @@ def query(request: QueryRequest):
         return result
     except Exception as e:
         print(f"Error in query endpoint: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 if __name__ == "__main__":

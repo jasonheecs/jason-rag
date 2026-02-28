@@ -146,12 +146,12 @@ def test_generate_answer_prompt_structure(mock_openai_class, prompt_builder):
     user_message = call_args.kwargs["messages"][1]["content"]
 
     # Check prompt structure
-    assert "Context:" in user_message
+    assert "What I know about Jason:" in user_message
     assert "Question:" in user_message
     assert "Answer:" in user_message
     assert "Test context" in user_message
     assert "Test question?" in user_message
-    assert "Jason" in user_message  # Should mention Jason
+    assert "Jason" in user_message 
 
 
 @patch("retrieval.prompt.OpenAI")

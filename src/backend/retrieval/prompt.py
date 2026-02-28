@@ -1,4 +1,6 @@
-from typing import List, Dict
+"""Prompt building module for generating LLM responses."""
+from typing import Dict, List
+
 from openai import OpenAI
 
 
@@ -15,28 +17,34 @@ class PromptBuilder:
 
         for i, doc in enumerate(documents, 1):
             context_parts.append(
-                f"[Source {i}] {doc['title']} ({doc['source']})\n{doc['content']}\n"
+                f"[Source {i}] {doc['title']} ({doc['source']})\n"
+                f"{doc['content']}\n"
             )
 
         return "\n".join(context_parts)
 
     def generate_answer(self, question: str, context: str) -> str:
         """Generate answer using OpenAI API with retrieved context."""
-        prompt = f"""You are an AI assistant answering questions based on Jason's writing and profile.
-The following is what you know about him, use it to answer the question.
-If the answer is not in what you know about him, say that you do not know him well enough to answer the question.
+        prompt = f"""You are an AI assistant answering questions based on Jason's
+writing and profile. The following is what you know about him, use it to answer the question.
+If the answer is not in what you know about him, say that you do not know him well enough
+to answer the question.
 
-What i know about Jason:
+What I know about Jason:
 {context}
 
 Question: {question}
 
 Answer:"""
 
+        system_message = (
+            "You are a helpful assistant that answers questions"
+            "based on what you know about Jason."
+        )
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": "You are a helpful assistant that answers questions based on what you know about Jason."},
+                {"role": "system", "content": system_message},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.7,
