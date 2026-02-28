@@ -1,13 +1,13 @@
 ---
 services:
   api:
-    image: jasonheecs/jason-rag-api:latest
+    image: docker.io/jasonheecs/jason-rag-api:latest
 
   ingestion:
-    image: jasonheecs/jason-rag-ingestion:latest
+    image: docker.io/jasonheecs/jason-rag-ingestion:latest
 
   ui:
-    image: jasonheecs/jason-rag-ui:latest
+    image: docker.io/jasonheecs/jason-rag-ui:latest
     networks:
       - jason-rag-network
       - caddy-network
