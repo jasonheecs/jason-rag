@@ -5,9 +5,10 @@ from uuid import uuid4
 
 import numpy as np
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams
+from qdrant_client.models import Distance, PointStruct, VectorParams, PayloadSchemaType
 
 from config.config import QDRANT_COLLECTION_NAME, QDRANT_HOST, QDRANT_PORT
+from config.db_helper import check_payload_index_exists
 
 
 class VectorDatabase:
@@ -65,6 +66,13 @@ class VectorDatabase:
         """Get the most recent published_date for a given source."""
         if not self.client or not self._collection_exists() or self._collection_is_empty():
             return None
+
+        if not check_payload_index_exists(self.client, self.collection_name, "published_date"):
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="published_date",
+                field_schema=PayloadSchemaType.DATETIME,
+            )
 
         return self._query_latest_document(source)
 
