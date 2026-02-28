@@ -7,10 +7,23 @@ services:
   api:
     image: docker.io/jasonheecs/jason-rag-api:latest
     container_name: ${API_CONTAINER_NAME:-api}
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_HOST=${QDRANT_HOST}
+      - QDRANT_PORT=${QDRANT_PORT}
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME}
+      - HF_TOKEN=${HF_TOKEN}
 
   ingestion:
     image: docker.io/jasonheecs/jason-rag-ingestion:latest
     container_name: ${INGESTION_CONTAINER_NAME:-ingestion}
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - QDRANT_HOST=${QDRANT_HOST}
+      - QDRANT_PORT=${QDRANT_PORT}
+      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME}
+      - MEDIUM_USERNAME=${MEDIUM_USERNAME}
+      - HF_TOKEN=${HF_TOKEN}
 
   ui:
     image: docker.io/jasonheecs/jason-rag-ui:latest
