@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import numpy as np
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, PointStruct, VectorParams, PayloadSchemaType
+from qdrant_client.models import Distance, PointStruct, VectorParams, PayloadSchemaType, OrderBy
 
 from config.config import QDRANT_COLLECTION_NAME, QDRANT_HOST, QDRANT_PORT
 from config.db_helper import check_payload_index_exists
@@ -130,7 +130,10 @@ class VectorDatabase:
                 ]
             },
             limit=1,
-            order_by="published_date",
+            order_by=OrderBy(
+                key="published_date",
+                direction="desc"
+            ),
             with_payload=["published_date"]
         )
 
