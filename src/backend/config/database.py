@@ -82,19 +82,42 @@ class VectorDatabase:
             self.client.close()
             print("Qdrant connection closed")
 
+    def get_content_hash(self, source: str) -> Optional[str]:
+        """Get the stored content hash for a given source."""
+        if not self.client or not self._collection_exists() or self._collection_is_empty():
+            return None
+
+        results = self.client.scroll(
+            collection_name=self.collection_name,
+            scroll_filter={
+                "must": [
+                    {"key": "source", "match": {"value": source}}
+                ]
+            },
+            limit=1,
+            with_payload=["content_hash"]
+        )
+        points, _ = results
+        if points:
+            return points[0].payload.get('content_hash')
+        return None
+
     def _create_point_from_document(self, doc: Dict) -> PointStruct:
         """Convert document to Qdrant point."""
+        payload = {
+            'title': doc['title'],
+            'content': doc['content'],
+            'source': doc['source'],
+            'url': doc['url'],
+            'published_date': doc['published_date'].isoformat(),
+            'chunk_index': doc['chunk_index'],
+        }
+        if 'content_hash' in doc:
+            payload['content_hash'] = doc['content_hash']
         return PointStruct(
             id=str(uuid4()),
             vector=doc['embedding'].tolist(),
-            payload={
-                'title': doc['title'],
-                'content': doc['content'],
-                'source': doc['source'],
-                'url': doc['url'],
-                'published_date': doc['published_date'].isoformat(),
-                'chunk_index': doc['chunk_index']
-            }
+            payload=payload
         )
 
     def _format_search_result(self, hit) -> Dict:

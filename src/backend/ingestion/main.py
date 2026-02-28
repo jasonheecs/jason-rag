@@ -5,6 +5,7 @@ Scrapes content, chunks it, embeds it, and stores in Qdrant.
 import os
 from ingestion.scrapers.medium import MediumScraper
 from ingestion.scrapers.github import GitHubScraper
+from ingestion.scrapers.resume import ResumeScraper
 from ingestion.chunker import TextChunker
 from ingestion.embedder import Embedder
 from config.database import VectorDatabase
@@ -53,8 +54,23 @@ class IngestionPipeline:
         if os.getenv("GITHUB_USERNAME"):
             documents.extend(self._scrape_source(GitHubScraper, "github"))
 
+        if os.getenv("RESUME_URL"):
+            resume_docs = self._scrape_source(ResumeScraper, "resume")
+            stored_hash = self.vector_db.get_content_hash("resume")
+            if self._should_scrape_resume(resume_docs, stored_hash):
+                documents.extend(resume_docs)
+            elif resume_docs:
+                print("Resume unchanged (hash match), skipping ingestion")
+
         print(f"Scraped {len(documents)} documents")
         return documents
+    
+    def _should_scrape_resume(self, resume_docs, stored_hash) -> bool:
+        """Determine if the resume should be scraped based on content hash."""
+        if resume_docs and ResumeScraper.document_is_new(resume_docs[0], stored_hash):
+            return True
+        
+        return False
 
     def _scrape_source(self, scraper_class, source_name):
         """Scrape content from a source using the provided scraper class.

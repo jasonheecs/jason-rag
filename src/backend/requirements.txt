@@ -2,6 +2,8 @@
 requests~=2.32
 beautifulsoup4~=4.14
 feedparser~=6.0
+pdfplumber~=0.10
+gdown~=5.0
 
 # Embeddings
 fastembed~=0.7
