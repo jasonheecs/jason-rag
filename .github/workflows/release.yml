@@ -27,3 +27,8 @@ jobs:
             api.tags=jasonheecs/jason-rag-api:latest
             ingestion.tags=jasonheecs/jason-rag-ingestion:latest
             ui.tags=jasonheecs/jason-rag-ui:latest
+
+      - name: Trigger deploy webhook
+        run: |
+          curl -X POST ${{ secrets.DEPLOY_WEBHOOK_URL }} \
+            -H "X-Webhook-Token: ${{ secrets.DEPLOY_WEBHOOK_TOKEN }}"
