@@ -1,5 +1,4 @@
 """Text chunking module for splitting documents into overlapping chunks."""
-import copy
 from typing import Dict, List
 
 
@@ -59,7 +58,4 @@ class TextChunker:
         chunk_index: int,
     ) -> Dict:
         """Create a new document with chunked content and metadata."""
-        chunked_doc = copy.deepcopy(original_doc)
-        chunked_doc['content'] = chunk_content
-        chunked_doc['chunk_index'] = chunk_index
-        return chunked_doc
+        return {**original_doc, 'content': chunk_content, 'chunk_index': chunk_index}

@@ -4,6 +4,7 @@ Scrapes content, chunks it, embeds it, and stores in Qdrant.
 """
 import argparse
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from ingestion.source_registry import SourceRegistry
 from ingestion.chunker import TextChunker
 from ingestion.embedder import Embedder
@@ -38,19 +39,25 @@ class IngestionPipeline:
         self.vector_db.connect()
 
     def _scrape_content(self):
-        """Scrape content from sources."""
-        print(f"\n[2/5] Scraping content from: {', '.join(sorted(self.sources))}...")
+        """Scrape content from sources in parallel."""
+        active_sources = [
+            source for source in SourceRegistry.get_sources()
+            if source in self.sources and os.getenv(SourceRegistry.get_env_var(source))
+        ]
+        skipped = self.sources - set(active_sources)
+        for source in skipped:
+            print(f"Skipping {source}: {SourceRegistry.get_env_var(source)} not set")
+
+        print(f"\n[2/5] Scraping content from: {', '.join(sorted(active_sources))}...")
         documents = []
 
-        for source in SourceRegistry.get_sources():
-            if source not in self.sources:
-                continue
-
-            env_var = SourceRegistry.get_env_var(source)
-            if not os.getenv(env_var):
-                print(f"Skipping {source}: {env_var} not set")
-                continue
-            documents.extend(self._scrape_source(SourceRegistry.get_scraper_class(source), source))
+        with ThreadPoolExecutor(max_workers=len(active_sources) or 1) as executor:
+            futures = {
+                executor.submit(self._scrape_source, SourceRegistry.get_scraper_class(source), source): source
+                for source in active_sources
+            }
+            for future in as_completed(futures):
+                documents.extend(future.result())
 
         print(f"Scraped {len(documents)} documents")
         return documents

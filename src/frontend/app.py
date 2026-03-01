@@ -1,8 +1,20 @@
-import streamlit as st
+import json
+
 import requests
+import streamlit as st
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 # Configuration
 BACKEND_API_URL = "http://api:80"
+
+
+@st.cache_resource
+def get_http_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(connect=3, backoff_factor=0.5)
+    session.mount("http://", HTTPAdapter(max_retries=retry))
+    return session
 
 st.set_page_config(
     page_title="Ask Jason",
@@ -54,39 +66,50 @@ if question:
     with st.chat_message("user"):
         st.markdown(question)
 
-    # Query API
+    # Query API with streaming
     with st.chat_message("assistant"):
-        with st.spinner("Thinking..."):
-            try:
-                response = requests.post(
-                    f"{BACKEND_API_URL}/query",
-                    json={"question": question, "top_k": 5}
-                )
-                response.raise_for_status()
-                result = response.json()
+        try:
+            response = get_http_session().post(
+                f"{BACKEND_API_URL}/query/stream",
+                json={"question": question, "top_k": 5},
+                stream=True
+            )
+            response.raise_for_status()
 
-                # Display answer
-                st.markdown(result["answer"])
+            captured = {"sources": None}
 
-                # Display sources
-                with st.expander("📚 View Sources"):
-                    for i, source in enumerate(result["sources"], 1):
-                        st.markdown(f"**{i}. {source['title']}** ({source['source']})")
-                        st.markdown(f"*Similarity: {source['similarity']:.2%}*")
-                        st.markdown(f"[Link]({source['url']})")
-                        st.markdown(f"```\n{source['content'][:200]}...\n```")
-                        st.markdown("---")
+            def stream_text():
+                for raw_line in response.iter_lines():
+                    if not raw_line or not raw_line.startswith(b"data: "):
+                        continue
+                    event = json.loads(raw_line[6:])
+                    if event["type"] == "sources":
+                        captured["sources"] = event["sources"]
+                    elif event["type"] == "text":
+                        yield event["content"]
 
-                # Add assistant message
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": result["answer"],
-                    "sources": result["sources"]
-                })
+            full_answer = st.write_stream(stream_text())
+            sources = captured["sources"] or []
 
-            except requests.exceptions.RequestException as e:
-                st.error(f"Error connecting to API: {e}")
-                st.info(f"Make sure the API is running at {BACKEND_API_URL}")
+            # Display sources
+            with st.expander("📚 View Sources"):
+                for i, source in enumerate(sources, 1):
+                    st.markdown(f"**{i}. {source['title']}** ({source['source']})")
+                    st.markdown(f"*Similarity: {source['similarity']:.2%}*")
+                    st.markdown(f"[Link]({source['url']})")
+                    st.markdown(f"```\n{source['content'][:200]}...\n```")
+                    st.markdown("---")
+
+            # Add assistant message
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": full_answer,
+                "sources": sources
+            })
+
+        except requests.exceptions.RequestException as e:
+            st.error(f"Error connecting to API: {e}")
+            st.info(f"Make sure the API is running at {BACKEND_API_URL}")
 
 # Sidebar
 with st.sidebar:

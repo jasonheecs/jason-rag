@@ -1,5 +1,5 @@
 """Prompt building module for generating LLM responses."""
-from typing import Dict, List
+from typing import Dict, Generator, List
 
 from openai import OpenAI
 
@@ -52,6 +52,40 @@ Answer:"""
         )
 
         return response.choices[0].message.content
+
+    def generate_answer_stream(self, question: str, context: str) -> Generator[str, None, None]:
+        """Generate answer using streaming, yielding text chunks as they arrive."""
+        prompt = f"""You are an AI assistant answering questions based on Jason's
+writing and profile. The following is what you know about him, use it to answer the question.
+If the answer is not in what you know about him, say that you do not know him well enough
+to answer the question.
+
+What I know about Jason:
+{context}
+
+Question: {question}
+
+Answer:"""
+
+        system_message = (
+            "You are a helpful assistant that answers questions"
+            "based on what you know about Jason."
+        )
+        stream = self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": prompt}
+            ],
+            temperature=0.7,
+            max_tokens=500,
+            stream=True
+        )
+
+        for chunk in stream:
+            content = chunk.choices[0].delta.content
+            if content:
+                yield content
 
     def answer_question(self, question: str, retrieved_docs: List[Dict]) -> Dict:
         """

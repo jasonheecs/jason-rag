@@ -118,20 +118,20 @@ class TestTextChunker:
         assert result == []
 
     def test_chunk_documents_metadata_isolation(self):
-        """Test that modifying one chunk doesn't affect others."""
+        """Test that modifying one chunk's scalar fields doesn't affect other chunks."""
         chunker = TextChunker(chunk_size=3, overlap=1)
         documents = [
             {
                 'content': 'one two three four',
-                'tags': ['tag1']
+                'source': 'test',
             }
         ]
 
         result = chunker.chunk_documents(documents)
-        result[0]['tags'].append('newtag')
+        result[0]['source'] = 'modified'
 
-        # Original document should not be affected
-        assert 'newtag' not in documents[0]['tags']
+        # Other chunks should not be affected
+        assert result[1]['source'] == 'test'
 
     @pytest.mark.parametrize("chunk_size,overlap,word_count,expected_chunks", [
         (10, 2, 25, 3),

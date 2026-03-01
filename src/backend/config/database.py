@@ -43,6 +43,13 @@ class VectorDatabase:
         else:
             print(f"Collection {self.collection_name} already exists")
 
+        if not check_payload_index_exists(self.client, self.collection_name, "source"):
+            self.client.create_payload_index(
+                collection_name=self.collection_name,
+                field_name="source",
+                field_schema=PayloadSchemaType.KEYWORD,
+            )
+
     def insert_documents(self, documents: List[Dict]):
         """Insert documents with embeddings into Qdrant."""
         points = [self._create_point_from_document(doc) for doc in documents]
@@ -87,7 +94,7 @@ class VectorDatabase:
         if not self.client or not self._collection_exists() or self._collection_is_empty():
             return None
 
-        results = self.client.scroll(
+        points, _ = self.client.scroll(
             collection_name=self.collection_name,
             scroll_filter={
                 "must": [
@@ -97,7 +104,6 @@ class VectorDatabase:
             limit=1,
             with_payload=["content_hash"]
         )
-        points, _ = results
         if points:
             return points[0].payload.get('content_hash')
         return None
@@ -145,7 +151,7 @@ class VectorDatabase:
 
     def _query_latest_document(self, source: str) -> Optional[datetime]:
         """Query for the most recent document from a given source."""
-        results = self.client.scroll(
+        points, _ = self.client.scroll(
             collection_name=self.collection_name,
             scroll_filter={
                 "must": [
@@ -153,14 +159,10 @@ class VectorDatabase:
                 ]
             },
             limit=1,
-            order_by=OrderBy(
-                key="published_date",
-                direction="desc"
-            ),
+            order_by=OrderBy(key="published_date", direction="desc"),
             with_payload=["published_date"]
         )
 
-        points, _ = results
         if points:
             return datetime.fromisoformat(points[0].payload['published_date'])
 
