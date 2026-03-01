@@ -61,9 +61,9 @@ class TestIngestionPipeline:
 
     @patch('ingestion.main.os.getenv')
     @patch('ingestion.main.Embedder')
-    @patch('ingestion.main.MediumScraper')
+    @patch('ingestion.source_registry.SourceRegistry.get_scraper_class')
     @patch('ingestion.main.VectorDatabase')
-    def test_run_with_medium_source(self, mock_vector_db, mock_medium_scraper, mock_embedder, mock_getenv):
+    def test_run_with_medium_source(self, mock_vector_db, mock_get_scraper_class, mock_embedder, mock_getenv):
         """Test full pipeline execution with Medium source."""
         db_instance = Mock()
         db_instance.get_last_scraped_date.return_value = None
@@ -74,7 +74,7 @@ class TestIngestionPipeline:
             {'content': 'post1', 'title': 'Post 1'},
             {'content': 'post2', 'title': 'Post 2'}
         ]
-        mock_medium_scraper.return_value = medium_instance
+        mock_get_scraper_class.return_value = Mock(return_value=medium_instance)
 
         embedder_instance = Mock()
         embedder_instance.embedding_dim = 384
@@ -106,9 +106,9 @@ class TestIngestionPipeline:
 
     @patch('ingestion.main.os.getenv')
     @patch('ingestion.main.Embedder')
-    @patch('ingestion.main.MediumScraper')
+    @patch('ingestion.source_registry.SourceRegistry.get_scraper_class')
     @patch('ingestion.main.VectorDatabase')
-    def test_run_skips_embedding_when_no_documents(self, mock_vector_db, mock_medium_scraper, mock_embedder, mock_getenv):
+    def test_run_skips_embedding_when_no_documents(self, mock_vector_db, mock_get_scraper_class, mock_embedder, mock_getenv):
         """Test pipeline skips embedding when scraper returns no documents."""
         db_instance = Mock()
         db_instance.get_last_scraped_date.return_value = None
@@ -116,7 +116,7 @@ class TestIngestionPipeline:
 
         medium_instance = Mock()
         medium_instance.scrape.return_value = []
-        mock_medium_scraper.return_value = medium_instance
+        mock_get_scraper_class.return_value = Mock(return_value=medium_instance)
 
         mock_getenv.side_effect = _create_mock_env(medium_username='testuser')
 
@@ -129,9 +129,9 @@ class TestIngestionPipeline:
 
     @patch('ingestion.main.os.getenv')
     @patch('ingestion.main.Embedder')
-    @patch('ingestion.main.MediumScraper')
+    @patch('ingestion.source_registry.SourceRegistry.get_scraper_class')
     @patch('ingestion.main.VectorDatabase')
-    def test_run_uses_last_scraped_date(self, mock_vector_db, mock_medium_scraper, mock_embedder, mock_getenv):
+    def test_run_uses_last_scraped_date(self, mock_vector_db, mock_get_scraper_class, mock_embedder, mock_getenv):
         """Test pipeline passes last scraped date to scraper."""
         db_instance = Mock()
         last_scraped_date = datetime(2024, 1, 1, tzinfo=timezone.utc)
@@ -140,7 +140,7 @@ class TestIngestionPipeline:
 
         medium_instance = Mock()
         medium_instance.scrape.return_value = [{'content': 'new post'}]
-        mock_medium_scraper.return_value = medium_instance
+        mock_get_scraper_class.return_value = Mock(return_value=medium_instance)
 
         embedder_instance = Mock()
         embedder_instance.embedding_dim = 384

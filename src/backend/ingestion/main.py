@@ -4,34 +4,19 @@ Scrapes content, chunks it, embeds it, and stores in Qdrant.
 """
 import argparse
 import os
-from ingestion.scrapers.medium import MediumScraper
-from ingestion.scrapers.github import GitHubScraper
-from ingestion.scrapers.resume import ResumeScraper
+from ingestion.source_registry import SourceRegistry
 from ingestion.chunker import TextChunker
 from ingestion.embedder import Embedder
 from config.database import VectorDatabase
 from config.config import EMBEDDING_MODEL
 
-SOURCES = {
-    "medium": "MEDIUM_USERNAME",
-    "github": "GITHUB_USERNAME",
-    "resume": "RESUME_URL",
-}
-
-def _get_scraper_class(source_name):
-    """Look up scraper class at call time so mocks applied via patch() are respected."""
-    return {
-        "medium": MediumScraper,
-        "github": GitHubScraper,
-        "resume": ResumeScraper,
-    }[source_name]
 
 class IngestionPipeline:
     """Orchestrates the full ingestion pipeline for scraping, chunking, and embedding content."""
 
     def __init__(self, embedding_model=EMBEDDING_MODEL, sources=None):
         self.embedding_model = embedding_model
-        self.sources = set(sources) if sources else set(SOURCES.keys())
+        self.sources = set(sources) if sources else set(SourceRegistry.get_sources())
         self.vector_db = None
         self.chunker = TextChunker()
         self.embedder = None
@@ -57,13 +42,15 @@ class IngestionPipeline:
         print(f"\n[2/5] Scraping content from: {', '.join(sorted(self.sources))}...")
         documents = []
 
-        for source_name, env_var in SOURCES.items():
-            if source_name not in self.sources:
+        for source in SourceRegistry.get_sources():
+            if source not in self.sources:
                 continue
+
+            env_var = SourceRegistry.get_env_var(source)
             if not os.getenv(env_var):
-                print(f"Skipping {source_name}: {env_var} not set")
+                print(f"Skipping {source}: {env_var} not set")
                 continue
-            documents.extend(self._scrape_source(_get_scraper_class(source_name), source_name))
+            documents.extend(self._scrape_source(SourceRegistry.get_scraper_class(source), source))
 
         print(f"Scraped {len(documents)} documents")
         return documents
@@ -124,9 +111,9 @@ def _parse_args():
         "-s", "--source",
         dest="sources",
         action="append",
-        choices=list(SOURCES.keys()),
+        choices=list(SourceRegistry.get_sources()),
         metavar="SOURCE",
-        help=f"Source(s) to scrape. Choices: {', '.join(SOURCES)}. Can be repeated. Defaults to all.",
+        help=f"Source(s) to scrape. Choices: {', '.join(SourceRegistry.get_sources())}. Can be repeated. Defaults to all.",
     )
     return parser.parse_args()
 
