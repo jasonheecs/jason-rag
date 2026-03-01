@@ -24,10 +24,13 @@ class ResumeScraper(BaseScraper):
             raise ValueError("Resume URL must be provided or set RESUME_URL env var")
         super().__init__("user")
 
-    def scrape(self, last_scraped_date: Optional[datetime] = None) -> List[Dict]:
-        _ = last_scraped_date
+    def scrape(self, last_scraped_date: Optional[datetime] = None, stored_hash: Optional[str] = None) -> List[Dict]:
+        # last_scraped_date accepted for interface compatibility; resumes use content-hash dedup instead of date filtering.
         doc = self._fetch_and_extract()
         if not doc:
+            return []
+        if stored_hash is not None and not self.document_is_new(doc, stored_hash):
+            print("Resume unchanged (hash match), skipping ingestion")
             return []
         print("Scraped 1 resume document")
         return [doc]
@@ -35,25 +38,28 @@ class ResumeScraper(BaseScraper):
     def _fetch_and_extract(self) -> Optional[Dict]:
         try:
             pdf_bytes, response = self._download_pdf()
-            content_hash = hashlib.sha256(pdf_bytes).hexdigest()
-            published_date = self._parse_last_modified(response)
-            with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
-                text_content = self._extract_text_from_pdf(pdf)
-                if not text_content.strip():
-                    print(f"No text extracted from resume at {self.url}")
-                    return None
-                doc = self._create_document(
-                    title=self._parse_filename(self.url),
-                    content=text_content.strip(),
-                    url=self.url,
-                    published_date=published_date,
-                    metadata={"pages": len(pdf.pages)},
-                )
-                doc["content_hash"] = content_hash
-                return doc
+            return self._build_document(pdf_bytes, response)
         except Exception as e:
             print(f"Failed to fetch resume from {self.url}: {str(e)}")
             return None
+
+    def _build_document(self, pdf_bytes: bytes, response: Optional[requests.Response]) -> Optional[Dict]:
+        content_hash = hashlib.sha256(pdf_bytes).hexdigest()
+        published_date = self._parse_last_modified(response)
+        with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            text_content = self._extract_text_from_pdf(pdf)
+            if not text_content.strip():
+                print(f"No text extracted from resume at {self.url}")
+                return None
+            doc = self._create_document(
+                title=self._parse_filename(self.url),
+                content=text_content.strip(),
+                url=self.url,
+                published_date=published_date,
+                metadata={"pages": len(pdf.pages)},
+            )
+            doc["content_hash"] = content_hash
+            return doc
 
     def _download_pdf(self) -> Tuple[bytes, Optional[requests.Response]]:
         if self._is_google_drive_url(self.url):

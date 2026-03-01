@@ -13,10 +13,18 @@ from config.database import VectorDatabase
 from config.config import EMBEDDING_MODEL
 
 SOURCES = {
-    "medium": (MediumScraper, "MEDIUM_USERNAME"),
-    "github": (GitHubScraper, "GITHUB_USERNAME"),
-    "resume": (ResumeScraper, "RESUME_URL"),
+    "medium": "MEDIUM_USERNAME",
+    "github": "GITHUB_USERNAME",
+    "resume": "RESUME_URL",
 }
+
+def _get_scraper_class(source_name):
+    """Look up scraper class at call time so mocks applied via patch() are respected."""
+    return {
+        "medium": MediumScraper,
+        "github": GitHubScraper,
+        "resume": ResumeScraper,
+    }[source_name]
 
 class IngestionPipeline:
     """Orchestrates the full ingestion pipeline for scraping, chunking, and embedding content."""
@@ -49,52 +57,27 @@ class IngestionPipeline:
         print(f"\n[2/5] Scraping content from: {', '.join(sorted(self.sources))}...")
         documents = []
 
-        for source_name, (scraper_class, env_var) in SOURCES.items():
+        for source_name, env_var in SOURCES.items():
             if source_name not in self.sources:
                 continue
             if not os.getenv(env_var):
                 print(f"Skipping {source_name}: {env_var} not set")
                 continue
-            if source_name == "resume":
-                documents.extend(self._scrape_resume())
-            else:
-                documents.extend(self._scrape_source(scraper_class, source_name))
+            documents.extend(self._scrape_source(_get_scraper_class(source_name), source_name))
 
         print(f"Scraped {len(documents)} documents")
         return documents
 
-    def _scrape_resume(self):
-        """Special handling for resume scraping to check content hash."""
-        resume_docs = self._scrape_source(ResumeScraper, "resume")
-        stored_hash = self.vector_db.get_content_hash("resume")
-        if self._should_scrape_resume(resume_docs, stored_hash):
-            return resume_docs
-        elif resume_docs:
-            print("Resume unchanged (hash match), skipping ingestion")
-        return []
-    
-    def _should_scrape_resume(self, resume_docs, stored_hash) -> bool:
-        """Determine if the resume should be scraped based on content hash."""
-        if resume_docs and ResumeScraper.document_is_new(resume_docs[0], stored_hash):
-            return True
-        
-        return False
-
     def _scrape_source(self, scraper_class, source_name):
-        """Scrape content from a source using the provided scraper class.
-        
-        Args:
-            scraper_class: The scraper class to instantiate
-            source_name: The source name for tracking last scraped date
-            
-        Returns:
-            List of documents from the scraper
-        """
+        """Scrape content from a source using the provided scraper class."""
         last_scraped = self.vector_db.get_last_scraped_date(source_name)
         if last_scraped:
             print(f"Last {source_name.title()} scrape: {last_scraped}")
         scraper = scraper_class()
-        return scraper.scrape(last_scraped_date=last_scraped)
+        kwargs = {"last_scraped_date": last_scraped}
+        if source_name == "resume":
+            kwargs["stored_hash"] = self.vector_db.get_content_hash("resume")
+        return scraper.scrape(**kwargs)
 
     def _chunk_documents(self, documents):
         """Chunk documents into smaller pieces."""

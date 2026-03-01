@@ -11,8 +11,12 @@ class Embedder:
 
     def __init__(self, model_name: str = "BAAI/bge-small-en-v1.5"):
         self.model = TextEmbedding(model_name=model_name)
-        # FastEmbed models have standard dimensions - bge-small is 384
-        self.embedding_dim = 384
+        self.embedding_dim = self._resolve_embedding_dim()
+
+    def _resolve_embedding_dim(self) -> int:
+        """Infer embedding dimension from the loaded model."""
+        probe = list(self.model.embed(["probe"]))[0]
+        return len(probe)
 
     def embed_text(self, text: str) -> np.ndarray:
         """Generate embedding for a single text."""

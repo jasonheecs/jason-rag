@@ -14,9 +14,10 @@ class TestEmbedder:
     def mock_embedder_setup(self):
         """Fixture to create mock TextEmbedding and Embedder instance."""
         with patch('ingestion.embedder.TextEmbedding') as mock_text_embedding:
-            mock_model = Mock()
-            mock_text_embedding.return_value = mock_model
-            yield mock_text_embedding, mock_model
+            with patch('ingestion.embedder.Embedder._resolve_embedding_dim', return_value=384):
+                mock_model = Mock()
+                mock_text_embedding.return_value = mock_model
+                yield mock_text_embedding, mock_model
 
     def _create_embedder(self, mock_setup, model_name=None):
         """Helper to create Embedder instance with mocked dependencies."""

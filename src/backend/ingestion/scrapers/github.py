@@ -11,6 +11,8 @@ class GitHubScraper(BaseScraper):
 
     API_BASE_URL = "https://api.github.com"
     SOURCE_NAME = "github"
+    REPOS_PER_PAGE = 100
+    CONTENT_SEPARATOR = " | "
 
     def __init__(self, username: Optional[str] = None, token: Optional[str] = None):
         """
@@ -73,7 +75,7 @@ class GitHubScraper(BaseScraper):
         """Fetch and parse user repositories."""
         repos = []
         page = 1
-        per_page = 100
+        per_page = self.REPOS_PER_PAGE
 
         while True:
             url = f"{self.API_BASE_URL}/users/{self.username}/repos"
@@ -134,7 +136,7 @@ class GitHubScraper(BaseScraper):
 
     def _build_content(self, parts: List[str]) -> str:
         """Join content parts into a single string."""
-        return " | ".join(parts)
+        return self.CONTENT_SEPARATOR.join(parts)
 
     def _parse_iso_date(self, iso_string: str) -> datetime:
         """Parse ISO 8601 date string to datetime."""
