@@ -43,12 +43,12 @@ for message in st.session_state.messages:
                     st.markdown("---")
 
 SUGGESTED_QUESTIONS = [
+    "Who is Jason Hee?",
     "Where did Jason Hee used to work at?",
-    "Can he code?",
-    "What is his favourite spreadsheet software?",
+    "Can he code?"
 ]
 
-if not st.session_state.messages:
+if not st.session_state.messages and "suggested_question" not in st.session_state:
     st.markdown("**Not sure where to start? Try one of these:**")
     cols = st.columns(len(SUGGESTED_QUESTIONS))
     for col, suggestion in zip(cols, SUGGESTED_QUESTIONS):
@@ -126,6 +126,8 @@ with st.sidebar:
     2. Similar content is retrieved
     3. GPT-4o-mini generates an answer
     """)
+
+    st.markdown("[View the source code for this app](https://github.com/jasonheecs/jason-rag)")
 
     if st.button("Clear Chat History"):
         st.session_state.messages = []
