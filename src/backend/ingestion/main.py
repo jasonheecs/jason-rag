@@ -2,6 +2,7 @@
 Main ingestion pipeline script.
 Scrapes content, chunks it, embeds it, and stores in Qdrant.
 """
+import argparse
 import os
 from ingestion.scrapers.medium import MediumScraper
 from ingestion.scrapers.github import GitHubScraper
@@ -11,18 +12,18 @@ from ingestion.embedder import Embedder
 from config.database import VectorDatabase
 from config.config import EMBEDDING_MODEL
 
+SOURCES = {
+    "medium": (MediumScraper, "MEDIUM_USERNAME"),
+    "github": (GitHubScraper, "GITHUB_USERNAME"),
+    "resume": (ResumeScraper, "RESUME_URL"),
+}
 
 class IngestionPipeline:
     """Orchestrates the full ingestion pipeline for scraping, chunking, and embedding content."""
 
-    def __init__(self, embedding_model=EMBEDDING_MODEL):
-        """
-        Initialize the ingestion pipeline.
-
-        Args:
-            embedding_model: Name of the embedding model to use
-        """
+    def __init__(self, embedding_model=EMBEDDING_MODEL, sources=None):
         self.embedding_model = embedding_model
+        self.sources = set(sources) if sources else set(SOURCES.keys())
         self.vector_db = None
         self.chunker = TextChunker()
         self.embedder = None
@@ -45,25 +46,32 @@ class IngestionPipeline:
 
     def _scrape_content(self):
         """Scrape content from sources."""
-        print("\n[2/5] Scraping content...")
+        print(f"\n[2/5] Scraping content from: {', '.join(sorted(self.sources))}...")
         documents = []
 
-        if os.getenv("MEDIUM_USERNAME"):
-            documents.extend(self._scrape_source(MediumScraper, "medium"))
-
-        if os.getenv("GITHUB_USERNAME"):
-            documents.extend(self._scrape_source(GitHubScraper, "github"))
-
-        if os.getenv("RESUME_URL"):
-            resume_docs = self._scrape_source(ResumeScraper, "resume")
-            stored_hash = self.vector_db.get_content_hash("resume")
-            if self._should_scrape_resume(resume_docs, stored_hash):
-                documents.extend(resume_docs)
-            elif resume_docs:
-                print("Resume unchanged (hash match), skipping ingestion")
+        for source_name, (scraper_class, env_var) in SOURCES.items():
+            if source_name not in self.sources:
+                continue
+            if not os.getenv(env_var):
+                print(f"Skipping {source_name}: {env_var} not set")
+                continue
+            if source_name == "resume":
+                documents.extend(self._scrape_resume())
+            else:
+                documents.extend(self._scrape_source(scraper_class, source_name))
 
         print(f"Scraped {len(documents)} documents")
         return documents
+
+    def _scrape_resume(self):
+        """Special handling for resume scraping to check content hash."""
+        resume_docs = self._scrape_source(ResumeScraper, "resume")
+        stored_hash = self.vector_db.get_content_hash("resume")
+        if self._should_scrape_resume(resume_docs, stored_hash):
+            return resume_docs
+        elif resume_docs:
+            print("Resume unchanged (hash match), skipping ingestion")
+        return []
     
     def _should_scrape_resume(self, resume_docs, stored_hash) -> bool:
         """Determine if the resume should be scraped based on content hash."""
@@ -127,7 +135,20 @@ class IngestionPipeline:
         print("✓ Ingestion Pipeline Complete!")
         print("=" * 60)
 
+def _parse_args():
+    parser = argparse.ArgumentParser(description="Run the ingestion pipeline.")
+    parser.add_argument(
+        "-s", "--source",
+        dest="sources",
+        action="append",
+        choices=list(SOURCES.keys()),
+        metavar="SOURCE",
+        help=f"Source(s) to scrape. Choices: {', '.join(SOURCES)}. Can be repeated. Defaults to all.",
+    )
+    return parser.parse_args()
 
 if __name__ == "__main__":
-    with IngestionPipeline() as pipeline:
+    args = _parse_args()
+
+    with IngestionPipeline(sources=args.sources) as pipeline:
         pipeline.run()

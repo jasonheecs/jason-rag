@@ -28,8 +28,6 @@ services:
     build:
       context: ./src/backend
       dockerfile: Dockerfile
-    depends_on:
-      - qdrant
     networks:
       - jason-rag-network
     command: ["python", "-m", "ingestion.main"]
